@@ -117,8 +117,173 @@ Before you generate a new SSH key, you should check whether you have any SSH key
 ssh-add -l
 ```
 
-If this command outputs an entry, then you can [test the SSH conection](TODO). Otherwise, this means that your agent is not managing any private keys. If you have a private key in your Bitwarden, [follow these steps to restore the key](#241-restore-bitwarden-ssh-key). Otherwise, you need to [generate a new SSH key](TODO).
+If this command outputs an entry, then you can [test the SSH conection](#247-test-ssh-connections). Otherwise, this means that your agent is not managing any private keys. If you have a private key in your Bitwarden, [follow these steps to restore the key](#241-restore-bitwarden-ssh-key). Otherwise, you need to [generate a new SSH key](#242-generate-new-key).
 
 #### 2.4.1 Restore Bitwarden SSH key
 
-To restore the key from Bitwarden.
+To restore the key from Bitwarden, you need to start by copying the private key to the clipboard, open the terminal and run the following commands:
+
+```powershell
+mkdir $env:USERPROFILE\.ssh
+Get-Clipboard | Out-File -FilePath $Env:USERPROFILE\.ssh\id_ed25519
+```
+
+Now that the file has been restored, you need to [add the key to the SSH Agent](#243-add-private-key-to-ssh-agent).
+
+#### 2.4.2 Generate New Key
+
+To use key-based authentication, you first need to generate public/private key pairs. We will use `ssh-keygen` to generate key files. To generate the required files, open the terminal and run the following command (*remember to change the comment*):
+
+```shell
+ssh-keygen -t ed25519 -C "comment"
+```
+
+The output from the command should look like the following lines:
+
+```
+Generating public/private ed25519 key pair.
+Enter file in which to save the key (<path to key here>):
+```
+
+At the prompt, you can select `Enter` to accept the default file path (these files will be cleaned later). Next, you're prompted to use a passphrase to encrypt your private key files.
+
+> **WARNING**
+>
+> Setting a passphrase will cause compatibility issues with Docker, Containers, and WSL. While this is not generally recommended, we will be relying on different security measures to ensure this file is protected.
+
+Click `Enter` when prompted to use a passphrase. The output should resemble the following:
+
+```
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+Your identification has been saved in /path/to/.ssh/id_ed25519
+Your public key has been saved in /path/to/.ssh/id_ed25519.pub
+The key fingerprint is:
+SHA256:n1m8u9fPC7leUo2TnZWNrm0G3QUUndsRhX7DW1cRMO0 username@hostname
+The key's randomart image is:
++--[ED25519 256]--+
+|             +*BB|
+|              o*=|
+|             .+.O|
+|           . o.EX|
+|        S   + *+O|
+|         . + =oo |
+|          + o++o |
+|             +*..|
+|            += .=|
++----[SHA256]-----+
+```
+
+Now you have a public/private ED25519 key pair in the specified location. The `.pub` file is the public key, and the file without an extension is the private key:
+
+```
+total 8
+-rw------- 1 username username 419 Jun 13 11:26 id_ed25519
+-rw-r--r-- 1 username username 109 Jun 13 11:26 id_ed25519.pub
+```
+
+#### 2.4.3 Add Private Key to SSH Agent
+
+The private key file is the equivalent of a password and should be protected the same way you protect your password. To load the private key file into `ssh-agent` open the terminal and run the following command(s):
+
+**For Windows**
+
+```powershell
+ssh-add $env:USERPROFILE\.ssh\id_ed25519
+```
+
+**For Linux**
+
+```shell
+chmod 400 $HOME/.ssh/id_ed25519
+ssh-add $HOME/.ssh/id_ed25519
+```
+
+After you add the private key to the `ssh-agent` service, the `ssh-agent` service automatically retrieves the local private key and passes it to the SSH client. At this point, if you haven't done so yet, [backup the private key in Bitwarden](#244-backup-private-key-in-bitwarden). If already backed up, you can [remove the private key](#245-remove-private-key).
+
+#### 2.4.4 Backup Private Key in Bitwarden
+
+Copy the content of the key to the clipboard using the following command:
+
+**For Windows**
+
+```powershell
+Get-Content $env:USERPROFILE\.ssh\id_ed25519
+```
+
+**For Linux**
+
+```shell
+cat $HOME\.ssh\id_ed25519 | xclip -sel clip
+```
+
+Now you can add a new SSH key in Bitwarden and click the import from clipboard button next to the private SSH key. This will automatically create the public key. So you don't need to worry.
+
+Now that the key is backed up, you can [remove the private key](#245-remove-private-key).
+
+#### 2.4.5 Remove Private Key
+
+Now that you have the private key managed by your `ssh-agent` and backed up in Bitwarden, you can remove the private key. This is done by running the following command:
+
+**For Windows**
+
+```powershell
+rm -f $env:USERPROFILE\.ssh\id_ed25519
+```
+
+**For Linux**
+
+```shell
+rm -f $HOME/.ssh/id_ed25519
+```
+
+With the private key removed, you need to either [add the public key to your account(s)](#246-add-public-key-to-your-accounts), or [test the SSH connection(s)](#247-test-ssh-connections).
+
+#### 2.4.6 Add public key to your account(s)
+
+No matter the account (i.e., GitHub, Bitbucket, Gitlab), the process requires you to add the public key. To do this, you need to load the contents of the public key into your clipboard. This is done by running the following command:
+
+**For Windows**
+
+```powershell
+Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
+```
+
+**For Linux**
+
+```shell
+cat $HOME/.ssh/id_ed25519.pub | xclip -sel clip
+```
+
+Now, you will just need to use `Ctrl`+`v` to paste the key contents into the web form(s). Once you have added all the keys, you can finally [test your SSH connection(s)](#247-test-ssh-connections).
+
+#### 2.4.7 Test SSH Connection(s)
+
+At this point, the last thing we need to do is test our SSH connection(s). This is done by opening the terminal and running the following command(s):
+
+```shell
+# For GitHub
+ssh -T git@github.com
+
+# For BitBucket
+ssh -T git@bitbucket.org
+
+# For Gitlab
+ssh -T git@gitlab.com
+```
+
+## 3 Troubleshooting
+
+### 3.1 error: failed retrieving file `'####.db'`
+
+To resolve this issue, make sure that you manually select only the needed mirrors. This is done by running the following command:
+
+```shell
+sudo pacman-mirrors -i
+```
+
+In the resulting window, select only the United States mirrors. Following this, the issue should be resolved after 1-2 executions of:
+
+```shell
+sudo pacman -Syu
+```
